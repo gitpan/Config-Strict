@@ -1,0 +1,13 @@
+Changes
+MANIFEST
+Makefile.PL
+README
+lib/Config/Strict.pm
+lib/Config/Strict.pod
+t/00-load.t
+t/basic.t
+t/bad_constructors.t
+t/manifest.t
+t/pod-coverage.t
+t/pod.t
+META.yml                                 Module meta-data (added by MakeMaker)
