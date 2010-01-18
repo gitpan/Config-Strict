@@ -1,5 +1,9 @@
 Revision history for Config-Strict
 
+0.02    01-18-2010
+        - Renamed param_validator to get_profile
+        - Updated pod
+
 0.01    01-17-2010
         Initial Release.
 

@@ -1,7 +1,7 @@
 --- #YAML:1.0
 name:               Config-Strict
-version:            0.01
-abstract:           Add strict typing to your configuration management
+version:            0.02
+abstract:           Add strict type-checking to configuration data
 author:
     - Blake Willmarth <bwillmarth@gmail.com>
 license:            perl

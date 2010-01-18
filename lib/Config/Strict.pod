@@ -1,10 +1,10 @@
 =head1 NAME
 
-Config::Strict - Add strict typing to your configuration management
+Config::Strict - Add strict type-checking to configuration data
 
 =head1 VERSION
 
-0.01 (alpha release)
+0.02 (alpha release)
 
 =head1 SYNOPSIS
 
@@ -15,14 +15,15 @@ Config::Strict - Add strict typing to your configuration management
     my $config = Config::Strict->new( {
         name   => "Example",                             # Type system name
         params => {                                      # Parameter types & names
-            Bool   => [ qw( my_bool1 my_bool2 ) ],       # Multiple parameters
-            Int    => 'my_i',                            # Single parameter
-            Num    => 'my_n',
-            Str    => [ qw( my_str1 my_str2 ) ],
-            Regexp => 'my_re',
+            Bool     => [ qw( my_bool1 my_bool2 ) ],     # Multiple parameters
+            Int      => 'my_i',                          # Single parameter
+            Num      => 'my_n',
+            Str      => [ qw( my_str1 my_str2 ) ],
+            Regexp   => 'my_re',
             ArrayRef => 'my_aref',
             HashRef  => 'my_href',
-            Enum   => { my_enum => [ qw( v1 v2 ), undef ] },
+            CodeRef  => 'my_cref',
+            Enum     => { my_enum => [ qw( v1 v2 ), undef ] },
             Custom   => {                                # Custom routines
                 # Bare coderef:
                 my_pos1 => sub { $_[ 0 ] > 0 },          # Positive number
@@ -54,13 +55,16 @@ Config::Strict - Add strict typing to your configuration management
     # Set multiple parameters
     $config->set_param( 'my_pos1' => 1, 'my_pos2' => 2 );
     
-    # Dies
+    # The following will die
+    $config->get_param( 'bad_name' );           # bad_name doesn't exist in the configuration
+    $config->set_param( 'my_i' => 2.2 );        # my_i must be an integer
     $config->set_param( 'my_pos2' => -5 );      # my_pos2 must be positive
-
+    
 =head1 DESCRIPTION
 
-Config::Strict leaps on the back of L<Declare::Constraints::Simple> to make it
-easy to add strict parameter typing to your configuration management system.
+Config::Strict utilizes L<Declare::Constraints::Simple> to enable strict 
+parameter type-checking to configuration data. Both built-in and custom types
+can be used to build a validation profile for the entire configuration.
 
 A typical workflow would be:
 
@@ -68,7 +72,7 @@ A typical workflow would be:
 
 =item 1. Use some configuration module to parse a configuration file.
 
-=item 2. Construct a C<Config::Strict> type system for your configuration parameters.
+=item 2. Construct a C<Config::Strict> type system for your configuration data.
 
 =item 3. Load the parsed configuration hash into the Config::Strict object using C<set_param>.
 
@@ -97,9 +101,9 @@ C<%opts> is a multi-level hash with the following top-level keys:
 =item B<name> (Required)
 
 Points to the name of the type system. This name is appended to 
-"Config::Strict::Params::" for proper namespacing of the Moose subtype (the
-parent Moose type is HashRef). See L<Moose::Meta::TypeConstraint> for more
-details.
+"Config::Strict::Params::" for proper namespacing of the Moose HashRef subtype 
+that uniquely describes the entire configuration data structure. See 
+L<Moose::Meta::TypeConstraint> for more details.
 
 =item B<params> (Required)
 
@@ -109,6 +113,9 @@ built-in Config::Strict types (more below).
 The values are either a single parameter name or an arrayref of parameter names,
 with the exception of the special types C<Enum> and C<Custom> which point to a 
 uniquely defined hashref.
+
+Any parameter not named here cannot be added later - any attempt to access a
+parameter not provided in the constructor will result in an error.
 
 B<Parameter Types And Values:>
 
@@ -168,25 +175,32 @@ boolean context but give more information (see the documentation for details).
 
 =item B<required> (Optional)
 
-Points to a list of parameter names that must have valid values at all times.
+Points to a arrayref of parameter names that must have valid values at all times.
 These parameters must also be given a default value.
+
+The special value '_all' will require all parameters to be required.
 
 =item B<defaults> (Optional)
 
-Points to a hash of default values to any number of parameters. Those parameters
-listed in C<required> I<must> be present in this section.
+Points to a hashref of default values to any number of parameters. 
+Those parameters listed in C<required> I<must> be present in this section.
 
 =back
 
 =head1 GETTING AND SETTING PARAMETER VALUES
 
+These methods will die with a stack trace if a parameter doesn't exist in the
+configuration profile, or if an attempt is made to set a parameter with an
+invalid value.
+
+
 =head2 $obj->get_param( parameter, parameter, ... )
 
-Returns the list of values corresponding to each C<parameter>.
+Returns the list of values corresponding to each parameter.
 
 =head2 $obj->set_param( parameter => value, parameter => value, ... )
 
-Sets each key-value configuration pair.
+Sets each parameter-value configuration pair.
 
 =head1 OTHER METHODS
 
@@ -198,16 +212,19 @@ Returns true if C<$param> can be get/set.
 
 Returns true if C<$param> has been set.
 
-=head2 $obj->param_validator( $param )
+=head2 $obj->get_profile( $param )
 
-Returns the coderef used to validate C<$param>. It takes a single argument and 
-returns true if the passed argument would be a valid value for C<$param>.
+Returns the coderef "profile" used to validate C<$param>. It takes a single 
+argument and returns true if the passed argument would be a valid value for 
+C<$param>. If it's a L<Declare::Constraints::Simple> profile (true for all cases
+except custom bare coderefs) it will more specifically return a 
+L<Declare::Constraints::Simple::Result>.
 
 =head2 $obj->all_params()
 
 Returns the list of all parameter names.
 
-=head1 EXTENDING THE DEFAULTS
+=head1 EXTENDING THE DEFAULT TYPES
 
 There are several ways to make your type system even more strict than the
 provided parameter types:
@@ -224,7 +241,7 @@ validation methods to add your own general validation semantics. These methods
 are executed before C<get_param> and C<set_param>, respectively, and receive the
 same arguments in C<@_>. 
 
-See also L<Moose::Manual::MethodModifiers/"INNER AND AUGMENT">.
+See also L<Moose::Manual::MethodModifiers/"INNER_AND_AUGMENT">.
 
 =back
 

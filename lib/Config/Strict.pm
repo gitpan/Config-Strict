@@ -4,7 +4,7 @@ use strict;
 use Data::Dumper;
 use Carp;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 use Moose;
 use Moose::Util::TypeConstraints;
@@ -78,7 +78,7 @@ has 'profile' => (
     required => 1,
     traits   => [ 'Hash' ],
     handles  => {
-        param_validator => 'get',
+        get_profile     => 'get',
         param_exists    => 'exists',
         all_params      => 'keys',
     },
