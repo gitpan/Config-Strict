@@ -1,10 +1,10 @@
 =head1 NAME
 
-Config::Strict - Add strict type-checking to configuration data
+Config::Strict - Add strict name- and type-checking to configuration data
 
 =head1 VERSION
 
-0.02 (alpha release)
+0.03 (alpha release)
 
 =head1 SYNOPSIS
 
@@ -24,12 +24,9 @@ Config::Strict - Add strict type-checking to configuration data
             HashRef  => 'my_href',
             CodeRef  => 'my_cref',
             Enum     => { my_enum => [ qw( v1 v2 ), undef ] },
-            Custom   => {                                # Custom routines
-                # Bare coderef:
-                my_pos1 => sub { $_[ 0 ] > 0 },          # Positive number
-                # Declare::Constraints::Simple code profiles:
-                my_pos2 => And( IsNumber, Matches( qr/^[^-]+$/ ) ),
-                                                         # Equivalent to my_pos1
+            Custom   => {                                # Custom profiles
+                my_pos2 =>                               # Positive number
+                    And( IsNumber, Matches( qr/^[^-]+$/ ) ),
                 my_nest => IsA( 'Config::Strict' ),      # Nested configuration
             }
         },
@@ -39,23 +36,26 @@ Config::Strict - Add strict type-checking to configuration data
             my_str2     => 'str',
             my_enum     => 'e2',
             my_n        => -1.1,
-            my_pos1     => 1_000,
-            my_pos1     => 3.3
+            my_pos2     => 1_000,
         },
     } );
     
     # Access and change the data
     
     # Retrieve a single value
-    $config->get_param( 'my_n' );
+    $config->get_param( 'my_n' );                       # -1.1
     
     # Retrieve a list of values
-    $config->get_param( qw( my_bool1 my_str2 ) );
+    $config->get_param( qw( my_bool1 my_str2 ) );       # ( 1, 'str' )
     
     # Set multiple parameters
-    $config->set_param( 'my_pos1' => 1, 'my_pos2' => 2 );
+    $config->set_param( my_bool1 => 1, 'my_pos2' => 2 );   
     
-    # The following will die
+    # Unset parameters
+    $config->unset_param( 'my_n' );
+    $config->param_is_set( 'my_n' );                    # false
+    
+    # The following will die:
     $config->get_param( 'bad_name' );           # bad_name doesn't exist in the configuration
     $config->set_param( 'my_i' => 2.2 );        # my_i must be an integer
     $config->set_param( 'my_pos2' => -5 );      # my_pos2 must be positive
@@ -63,14 +63,15 @@ Config::Strict - Add strict type-checking to configuration data
 =head1 DESCRIPTION
 
 Config::Strict utilizes L<Declare::Constraints::Simple> to enable strict 
-parameter type-checking to configuration data. Both built-in and custom types
-can be used to build a validation profile for the entire configuration.
+parameter name- and type-checking on configuration data. Both built-in and 
+custom types can be used to build a validation profile for the entire 
+configuration.
 
-A typical workflow would be:
+A typical workflow might be:
 
 =over 4
 
-=item 1. Use some configuration module to parse a configuration file.
+=item 1. Use some configuration module to parse a configuration file and load its data.
 
 =item 2. Construct a C<Config::Strict> type system for your configuration data.
 
@@ -82,9 +83,7 @@ A typical workflow would be:
 
 =back
 
-See L<Declare::Constraints::Simple::Library> for an index to available 
-constraints and the parent documentation for defining your own constraints 
-and scoping.
+See L<Declare::Constraints::Simple::Library> for an index to available constraints and the parent documentation for defining your own constraints and scoping.
 
 This is a L<Moose> module.
 
@@ -92,9 +91,9 @@ This is a L<Moose> module.
 
 Declare the type system during construction:
 
-=head2 Config::Strict->new( \%opts )
+=head2 Config::Strict->new( \%config_profile )
 
-C<%opts> is a multi-level hash with the following top-level keys:
+C<%config_profile> is a multi-level hash with the following top-level keys:
 
 =over 4
 
@@ -114,8 +113,9 @@ The values are either a single parameter name or an arrayref of parameter names,
 with the exception of the special types C<Enum> and C<Custom> which point to a 
 uniquely defined hashref.
 
-Any parameter not named here cannot be added later - any attempt to access a
-parameter not provided in the constructor will result in an error.
+Any parameter not named here cannot be added later - any attempt to L<access a
+parameter|/"GETTING AND SETTING PARAMETER VALUES"> that is not provided in the 
+constructor will result in an error.
 
 B<Parameter Types And Values:>
 
@@ -123,7 +123,7 @@ B<Parameter Types And Values:>
 
 =item B<Bool>
 
-Those parameters which must take the value 0 or 1.
+Parameters taking the value 0 or 1.
 
 =item B<Int>
 
@@ -161,15 +161,11 @@ Generic code parameters.
 
 =item B<Custom>
 
-Custom validation code. The C<Custom> key points to a hashref with
-C<$parameter_name =E<gt> $coderef> pairs, where C<$coderef> is an anonymous
-subroutine that validates a single argument and returns true or false (1 or 0)
-if the given value is a valid one for that parameter.
+Custom validation code. The C<Custom> key points to a hashref with C<$parameter_name =E<gt> $coderef> pairs, where C<$coderef> is a routine that validates a single argument and returns true or false (1 or 0) if the given value is a valid one for that parameter.
 
-C<$coderef> can be either literal (C<sub { my $val = $_[0]; ... }>) or a 
-L<Declare::Constraints::Simple> "profile." These code profiles will actually
-return a L<Declare::Constraints::Simple::Result> which evaluate properly in 
-boolean context but give more information (see the documentation for details).
+As of version 0.03, C<$coderef> must be a L<Declare::Constraints::Simple> "profile." These code profiles will in fact return a L<Declare::Constraints::Simple::Result> which evaluate properly in boolean context and give more information (see their documentation for details).
+
+Future versions may have the option of literal routines (C<sub { my $val = $_[0]; ... }>) which will be wrapped automatically in a profile.
 
 =back
 
@@ -178,7 +174,8 @@ boolean context but give more information (see the documentation for details).
 Points to a arrayref of parameter names that must have valid values at all times.
 These parameters must also be given a default value.
 
-The special value '_all' will require all parameters to be required.
+The special value '_all' in the first location is a shortcut to specify that all 
+parameters are to be required.
 
 =item B<defaults> (Optional)
 
@@ -187,42 +184,79 @@ Those parameters listed in C<required> I<must> be present in this section.
 
 =back
 
-=head1 GETTING AND SETTING PARAMETER VALUES
+=head1 METHODS
 
-These methods will die with a stack trace if a parameter doesn't exist in the
-configuration profile, or if an attempt is made to set a parameter with an
-invalid value.
+=head2 GETTING AND SETTING PARAMETER VALUES
 
+These methods will die with a stack trace if a given parameter doesn't exist in the configuration profile, or if an attempt is made to set a parameter with an invalid value.
 
-=head2 $obj->get_param( parameter, parameter, ... )
+=over 4
+
+=item $obj->get_param( $param1, $param2, ... )
 
 Returns the list of values corresponding to each parameter.
 
-=head2 $obj->set_param( parameter => value, parameter => value, ... )
+=item $obj->set_param( $param1 => $value1, $param2 => $value2, ... )
 
 Sets each parameter-value configuration pair.
 
-=head1 OTHER METHODS
+=item $obj->unset_param( $param1, $param2, ... )
 
-=head2 $obj->param_exists( $param )
+Unsets each parameter; internally deletes the parameter-value pair from the underlying parameter hash.
 
-Returns true if C<$param> can be get/set.
+Required parameters cannot be unset.
 
-=head2 $obj->param_set( $param )
+=back
 
-Returns true if C<$param> has been set.
+=head2 PARAMETER CHECKING
 
-=head2 $obj->get_profile( $param )
+The following methods can be used to check conditions on parameters without killing the program.
 
-Returns the coderef "profile" used to validate C<$param>. It takes a single 
-argument and returns true if the passed argument would be a valid value for 
-C<$param>. If it's a L<Declare::Constraints::Simple> profile (true for all cases
-except custom bare coderefs) it will more specifically return a 
-L<Declare::Constraints::Simple::Result>.
+=over 4
 
-=head2 $obj->all_params()
+=item $obj->validate( $param1 => $value1, $param2 => $value2, ... )
 
-Returns the list of all parameter names.
+Returns true if all parameter-value pairs are valid; false otherwise.
+
+=item $obj->param_exists( $param )
+
+Returns true if C<$param> can be get/set; false otherwise.
+
+=item $obj->param_is_set( $param )
+
+Returns true if C<$param> has been set; false otherwise.
+
+=item $obj->param_is_required( $param )
+
+Returns true if C<$param> is a required parameter; false otherwise.
+
+=back
+
+=head2 OTHER METHODS
+
+=over 4
+
+=item $obj->all_params()
+
+Returns the list of all parameters in the configuration.
+
+=item $obj->all_set_params()
+
+Returns the list of all set parameters in the configuration.
+
+=item $obj->param_hash()
+
+Returns a copy of the underlying configuration data as a list of key-value pairs.
+
+=item $obj->param_array()
+
+Returns a copy of the underlying configuration data as an array of array references.
+
+=item $obj->get_profile( $param )
+
+Returns the L<Declare::Constraints::Simple> "profile" used to validate C<$param>; it takes a single argument and returns true if the passed argument would be a valid value for C<$param>. If it's a  profile (true for all cases except custom bare coderefs) it will more specifically return a L<Declare::Constraints::Simple::Result>.
+
+=back
 
 =head1 EXTENDING THE DEFAULT TYPES
 
@@ -234,18 +268,18 @@ provided parameter types:
 =item 1. Using the C<Custom> key and combining any number of 
 C<Declare::Constraints::Simple> routines, and/or your own.
 
-=item 2. Using the C<Custom> key and defining your own validation coderefs.
+=item 2. Using the C<Custom> key and defining your own validation coderefs. (B<TODO>)
 
-=item 3. Subclassing Config::Strict and augmenting the C<_get_check> and C<_set_check>
-validation methods to add your own general validation semantics. These methods
-are executed before C<get_param> and C<set_param>, respectively, and receive the
-same arguments in C<@_>. 
+=item 3. Subclassing Config::Strict and augmenting the C<_get_check>, C<_set_check>, and C<_unset_check> validation methods to add your own general validation semantics. These methods are executed before C<get_param>, C<set_param>, and C<unset_param>, respectively, and receive the same arguments in C<@_>. 
 
 See also L<Moose::Manual::MethodModifiers/"INNER_AND_AUGMENT">.
 
 =back
 
-B<TODO>
+B<TODO>:
+    - Document more code examples
+    - Custom type class registration
+    - DCS profile wrapper mechanism
 
 =head1 SEE ALSO
 

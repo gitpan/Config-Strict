@@ -5,8 +5,9 @@ README
 lib/Config/Strict.pm
 lib/Config/Strict.pod
 t/00-load.t
-t/basic.t
+t/all_types_and_methods.t
 t/bad_constructors.t
+t/ok_constructors.t
 t/manifest.t
 t/pod-coverage.t
 t/pod.t

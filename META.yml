@@ -1,7 +1,7 @@
 --- #YAML:1.0
 name:               Config-Strict
-version:            0.02
-abstract:           Add strict type-checking to configuration data
+version:            0.03
+abstract:           Add strict name- and type-checking to configuration data
 author:
     - Blake Willmarth <bwillmarth@gmail.com>
 license:            perl

@@ -1,5 +1,17 @@
 Revision history for Config-Strict
 
+0.03    01-18-2010
+        - Eliminated bare coderefs until a wrapper is written to allow the
+          registration of named custom D::C::S constraints.
+        - Made user-created type properly registered in the Moose type registry 
+          and used by Moose to validate 'params' hash.
+        - Added param_is_required, unset_param methods
+        - Added validate method
+        - Renamed param_set to param_is_set
+        - Added more underlying data accessors 
+          (param_hash,param_array,all_set_params)
+        - Updated pod, test cases
+
 0.02    01-18-2010
         - Renamed param_validator to get_profile
         - Updated pod
