@@ -1,5 +1,8 @@
 Revision history for Config-Strict
 
+0.04    01-19-2010
+        - Removed Moose
+
 0.03    01-18-2010
         - Eliminated bare coderefs until a wrapper is written to allow the
           registration of named custom D::C::S constraints.

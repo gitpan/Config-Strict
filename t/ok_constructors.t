@@ -8,7 +8,6 @@ use Moose::Util::TypeConstraints qw(find_type_constraint);
 
 ok(
     Config::Strict->new( {
-            name   => 'Test1',
             params => { Bool => 'b' }
         }
     ),
@@ -17,7 +16,6 @@ ok(
 
 ok(
     Config::Strict->new( {
-            name     => 'Test2',
             params   => { Bool => 'b' },
             defaults => { 'b' => 0 }
         }
@@ -27,7 +25,6 @@ ok(
 
 ok(
     Config::Strict->new( {
-            name     => 'Test3',
             params   => { Bool => 'b' },
             required => [ 'b' ],
             defaults => { 'b' => 0 }
@@ -38,7 +35,6 @@ ok(
 
 ok(
     Config::Strict->new( {
-            name     => 'Test4',
             params   => { Bool => 'b', Int => 'i', Num => 'n' },
             required => [ qw( i n ) ],
             defaults => { 'i' => 10, 'n' => 2.2 }

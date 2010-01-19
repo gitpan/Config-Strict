@@ -4,25 +4,38 @@ use strict;
 use Data::Dumper;
 use Scalar::Util qw(blessed weaken);
 $Data::Dumper::Indent = 0;
-use Carp;
+use Carp qw(confess croak);
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
-use Moose;
-use Moose::Util::TypeConstraints qw(find_type_constraint);
 use Declare::Constraints::Simple -All;
 
-# Constructor
-around BUILDARGS => sub {
-    my ( $new, $class ) = ( shift, shift );
-    my $opts = shift;
-    confess "Invalid construction arguments: @_" if @_;
+# TODO: Allow user type registration
+my %type_registry = (
+    Bool => IsOneOf( 0, 1 ),
+    Num  => IsNumber,
+    Int  => IsInt,
+    Str  => HasLength,
+#        Enum     => IsOneOf,   # Points to a hash
+    ArrayRef => IsArrayRef,
+    HashRef  => IsHashRef,
+    CodeRef  => IsCodeRef,
+    Regexp   => IsRegex
+);
 
-    # Get a type name
-    croak "Subtype 'name' key needed"
-        unless ( my $constraint_name = delete $opts->{ name } );
-    # Prefix our type namespace
-    $constraint_name = 'Config::Strict::Params::' . $constraint_name;
+sub _validate_defaults {
+    my ( $default, $required ) = @_;
+    for ( @$required ) {
+        confess "$_ is a required parameter but isn't in the defaults"
+            unless exists $default->{ $_ };
+    }
+}
+
+# Constructor
+sub new {
+    my $class = shift;
+    my $opts  = shift;
+    confess "Invalid construction arguments: @_" if @_;
 
     # Get the parameter hash
     croak "No 'params' key in constructor"
@@ -39,82 +52,104 @@ around BUILDARGS => sub {
 
     # Create the configuration profile
     my $profile = _create_profile( $param );
+
     # Set required to all parameters if == [ _all ]
     @$required = keys %$profile
         if @$required == 1 and $required->[ 0 ] eq '_all';
 
-    # Register the Moose type constraint
-#    my $constraint =
-    _register_type( $constraint_name, $required, $profile );
-
-    # Set the param attribute
-    _set_params_attribute( $constraint_name );
+    # Validate defaults
+    _validate_defaults( $default, $required );
 
     # Construct
-    $class->$new(
-        params              => $default,
-        required_parameters => $required,
-        profile             => $profile,
-#        constraint => $constraint,
-    );
-};
-
-# Create parent subtype (just inherits HashRef)
-#subtype 'Config::Strict::Params' => as 'HashRef';
-sub _set_params_attribute {
-    my ( $isa ) = @_;
-    my $constraint = has 'params' => (
-        is       => 'ro',
-        isa      => $isa,
-        required => 1,
-        traits   => [ 'Hash' ],
-        handles  => {
-            get_param      => 'get',
-            set_param      => 'set',
-            unset_param    => 'delete',
-            param_is_set   => 'exists',
-            all_set_params => 'keys',
-            param_hash     => 'elements',
-            param_array    => 'kv',
+    my $self = bless( {
+            _required => { map { $_ => 1 } @$required }
+            ,    # Convert to hash lookup
+            _profile => $profile,
         },
+        $class
     );
-    before 'get_param'   => \&_get_check;
-    before 'set_param'   => \&_set_check;
-    before 'unset_param' => \&_unset_check;
+    $self->set_param( %$default );
+    $self;
+} ## end sub new
+
+sub get_param {
+    my $self = shift;
+    $self->_get_check( @_ );
+    my $params = $self->{ _params };
+#    print Dumper \@_;
+    return (
+        wantarray ? ( map { $params->{ $_ } } @_ ) : $params->{ $_[ 0 ] } );
 }
 
-has 'required_parameters' => (
-    is      => 'ro',
-    isa     => 'ArrayRef[Str]',
-    default => sub { [] },
-);
+sub set_param {
+    my $self = shift;
+    $self->_set_check( @_ );
+    my %pv = @_;
+    while ( my ( $p, $v ) = each %pv ) {
+        $self->{ _params }{ $p } = $v;
+    }
+    1;
+}
 
-has 'profile' => (
-    is       => 'ro',
-    isa      => 'HashRef[CodeRef]',
-    required => 1,
-    traits   => [ 'Hash' ],
-    handles  => {
-        get_profile  => 'get',
-        param_exists => 'exists',
-        all_params   => 'keys',
-    },
-);
+sub unset_param {
+    my $self = shift;
+    $self->_unset_check( @_ );
+    delete $self->{ _params }{ $_ } for @_;
+}
+
+sub param_is_set {
+    my $self = shift;
+    croak "No parameter passed" unless @_;
+    return exists $self->{ _params }{ $_[ 0 ] };
+}
+
+sub all_set_params {
+    keys %{ shift->{ _params } };
+}
+
+sub param_hash {
+    %{ shift->{ _params } };
+}
+
+sub param_array {
+    my $self = shift;
+#    my @array;
+#    while ( my ( $p, $v ) = each %{ $self->{ _params } } ) {
+#        push @array, [ $p => $v ];
+#    }
+#    @array;
+    my $params = $self->{ _params };
+    map { [ $_ => $params->{ $_ } ] } keys %$params;
+}
+
+sub param_exists {
+    my $self = shift;
+    croak "No parameter passed" unless @_;
+    return exists $self->{ _profile }{ $_[ 0 ] };
+}
+
+sub all_params {
+    keys %{ shift->{ _profile } };
+}
+
+sub get_profile {
+    my $self = shift;
+    croak "No parameter passed" unless @_;
+    $self->{ _profile }{ $_[ 0 ] };
+}
 
 sub _get_check {
     my ( $self, @params ) = @_;
-    my $profile = $self->profile;
+    my $profile = $self->{ _profile };
     _profile_check( $profile, $_ ) for @params;
-    inner();
 }
 
 sub _set_check {
     my ( $self, %value ) = @_;
-    my $profile = $self->profile;
+    my $profile = $self->{ _profile };
     while ( my ( $k, $v ) = each %value ) {
         _profile_check( $profile, $k => $v );
     }
-    inner();
 }
 
 sub _unset_check {
@@ -124,36 +159,9 @@ sub _unset_check {
         confess "$_ is a required parameter" if $self->param_is_required( $_ );
     }
     # Check against profile
-    my $profile = $self->profile;
+    my $profile = $self->{ _profile };
     _profile_check( $profile, $_ ) for @params;
-    inner();
 }
-
-sub _register_type {
-    my ( $name, $required, $profile ) = @_;
-
-    # Check that $name doesn't exist
-    confess "Type constraint $name already exists"
-        if find_type_constraint( $name );
-
-    $required ||= [];
-    confess "No profile" unless %$profile;
-
-    my $config_profile =
-        And( HasAllKeys( @$required ), OnHashKeys( %$profile ) );
-    Moose::Util::TypeConstraints::_create_type_constraint(
-        $name,                                # name
-        find_type_constraint( 'HashRef' ),    # parent
-        $config_profile,                      # constraint
-        sub {
-            sprintf( "%s (%s)",
-                $config_profile->( $_ )->message,
-                ( defined $_ ? Dumper( $_ ) : 'undef' ) );
-            }                                 # message
-    );
-}
-
-no Moose;
 
 sub validate {
     my $self = shift;
@@ -161,7 +169,6 @@ sub validate {
     confess "Uneven number of parameter-values pairs passed" if @_ % 2;
     my %pair = @_;
     while ( my ( $param, $value ) = each %pair ) {
-        return 0 unless defined $param;
         return 0
             unless $self->param_exists( $param )
                 and $self->get_profile( $param )->( $value );
@@ -172,14 +179,15 @@ sub validate {
 sub param_is_required {
     my ( $self, $param ) = @_;
     return unless $param;
-    return scalar grep { $param eq $_ } @{ $self->required_parameters };
+    return 1 if $self->{ _required }{ $param };
+    0;
 }
 
 # Static validator from profile
 sub _profile_check {
     my ( $profile, $param ) = ( shift, shift );
     confess "No parameter passed" unless defined $param;
-    confess "Invalid parameter name: $param doesn't exist"
+    confess "Invalid parameter: $param doesn't exist"
         unless exists $profile->{ $param };
     if ( @_ ) {
         my $value  = shift;
@@ -233,18 +241,6 @@ sub _create_profile {
     # Check parameter hash structure
     _validate_param_hash( $param );
 
-    # TODO: Make this class data and alterable
-    my %type_registry = (
-        Bool => IsOneOf( 0, 1 ),
-        Num  => IsNumber,
-        Int  => IsInt,
-        Str  => HasLength,
-#        Enum     => IsOneOf,   # Points to a hash
-        ArrayRef => IsArrayRef,
-        HashRef  => IsHashRef,
-        CodeRef  => IsCodeRef,
-        Regexp   => IsRegex
-    );
     my %profile = (
         # Built-in types
         (
@@ -273,16 +269,6 @@ sub _create_profile {
 "Custom validation must be done with Declare::Constraints::Simple profiles in $VERSION"
                     unless ( $class
                     and $class eq 'Declare::Constraints::Simple::Result' );
-#                {
-#                    $sub = sub {
-#                        my $got = $sub->( $_[ 0 ] );
-#                        Declare::Constraints::Simple::Result->new(
-#                            valid => ( $got ? 1 : 0 ),
-#                            message => $_[ 0 ] . " invalid"
-#                        );
-#                    };
-#                    weaken( $sub );
-#                }
                 $_ => $sub
                 }
                 keys %{ $param->{ Custom } }

@@ -13,7 +13,9 @@ WriteMakefile(
     PL_FILES  => {},
     PREREQ_PM => {
         'Test::More'                   => 0,
-        'Moose'                        => 0.90,
+#        'Test::Deep'                   => 0.089,
+        'Scalar::Util'                 => 0,
+#        'Moose'                        => 0.90,
         'Declare::Constraints::Simple' => 0.03
     },
     dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },

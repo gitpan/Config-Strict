@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 use Data::Dumper;
-use Test::More tests => 78;
+use Test::More tests => 82;
 
 use Config::Strict;
 use Declare::Constraints::Simple -All;
@@ -14,12 +14,11 @@ my %default = (
     nvar  => 2.3,
     aref1 => [ 'meh' ],
     href1 => { 'k' => 'v' },
-    pos1  => 2,
-    pos   => 3,
+#    pos1  => 2,
+    pos => 3,
 );
 my $config = Config::Strict->new( {
-        name   => "Example",    # Subtype name
-        params => {             # Parameter names
+        params => {    # Parameter names
             Bool   => [ qw( b1 b2 ) ],                     # Multiple parameters
             Int    => 'ivar',                              # One parameter
             Num    => 'nvar',
@@ -40,16 +39,15 @@ my $config = Config::Strict->new( {
         defaults => \%default
     }
 );
+#$Data::Dumper::Indent = 2;
 #print Dumper $config;
 
-# Underlying data accessors
-is_deeply( { $config->param_hash }, \%default, 'param_hash' );
-is_deeply(
-    [ $config->param_array ],
-    [ map { [ $_ => $default{ $_ } ] } keys %default ],
-    'param_array'
-);
-is_deeply( [ $config->all_set_params ], [ keys %default ], 'all_set_params' );
+# get_param
+while ( my ( $p, $v ) = each %default ) {
+    my $got = $config->get_param( $p );
+    no warnings;
+    is( $got, $v, "$p => $v" );
+}
 
 # Bad params
 my_eval_ok( 'get_param', $config, 'blah' );
@@ -124,7 +122,6 @@ is_deeply(
 );
 $config->set_param(
     'nest' => Config::Strict->new( {
-            name     => "Example::Nested",
             params   => { Bool => [ 'b1' ] },
             defaults => { b1 => 0 }
         }

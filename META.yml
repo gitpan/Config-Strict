@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Config-Strict
-version:            0.03
+version:            0.04
 abstract:           Add strict name- and type-checking to configuration data
 author:
     - Blake Willmarth <bwillmarth@gmail.com>
@@ -12,13 +12,13 @@ build_requires:
     ExtUtils::MakeMaker:  0
 requires:
     Declare::Constraints::Simple:  0.03
-    Moose:                0.9
+    Scalar::Util:         0
     Test::More:           0
 no_index:
     directory:
         - t
         - inc
-generated_by:       ExtUtils::MakeMaker version 6.55_02
+generated_by:       ExtUtils::MakeMaker version 6.54
 meta-spec:
     url:      http://module-build.sourceforge.net/META-spec-v1.4.html
     version:  1.4
