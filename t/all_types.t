@@ -28,9 +28,8 @@ my $config = Config::Strict->new( {
             ArrayRef => 'aref1',
             HashRef  => 'href1',
             CodeRef  => 'cref1',
-            Custom   => {                                  # Custom routines
+            Anon   => {                                  # Anon routines
 #                pos1 => sub            { $_[ 0 ] > 0 },        TODO?
-#pos1 => And( IsNumber, Matches( qr/^[^-]+$/ ) ),
                 pos  => And( IsNumber, Matches( qr/^[^-]+$/ ) ),
                 nest => IsA( 'Config::Strict' ),
             }
@@ -98,9 +97,7 @@ is( $config->get_param( 'enum1' ) => 'e1', 'enum' );
 $config->set_param( 'enum1' => undef );
 is( $config->get_param( 'enum1' ) => undef, 'enum undef' );
 my_eval_ok( 'set_param', $config, 'enum1' => 'blah' );
-#print Dumper $config;
 my_eval_ok( 'set_param', $config, 'enum1' => 1 );
-#print Dumper $config;
 
 # Refs
 my_eval_ok( 'set_param', $config, 'aref1' => {} );
@@ -110,7 +107,7 @@ ok( $config->set_param( 'aref1' => [] ), 'aref set' );
 ok( $config->set_param( 'href1' => {} ), 'href set' );
 ok( $config->set_param( 'cref1' => sub { 1 } ), 'cref set' );
 
-# Custom
+# Anon
 is( $config->get_param( 'pos' ), 3, 'pos' );
 #my_eval_ok( 'set_param', $config, 'pos1' => -2 );
 my_eval_ok( 'set_param', $config, 'pos' => -2 );
@@ -123,7 +120,7 @@ is_deeply(
 $config->set_param(
     'nest' => Config::Strict->new( {
             params   => { Bool => [ 'b1' ] },
-            defaults => { b1 => 0 }
+            defaults => { b1   => 0 }
         }
     )
 );

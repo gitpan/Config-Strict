@@ -4,11 +4,14 @@ Makefile.PL
 README
 lib/Config/Strict.pm
 lib/Config/Strict.pod
+lib/Config/Strict/UserConstraints.pm
+lib/Config/Strict/UserConstraints.pod
 t/00-load.t
-t/all_types.t
-t/bad_constructors.t
-t/deep.t
 t/ok_constructors.t
+t/bad_constructors.t
+t/all_types.t
+t/deep.t
+t/user_types.t
 t/manifest.t
 t/pod-coverage.t
 t/pod.t

@@ -4,7 +4,7 @@ Config::Strict - Add strict name- and type-checking to configuration data
 
 =head1 VERSION
 
-0.04 (alpha release)
+0.05 (alpha release)
 
 =head1 SYNOPSIS
 
@@ -23,7 +23,7 @@ Config::Strict - Add strict name- and type-checking to configuration data
             HashRef  => 'my_href',
             CodeRef  => 'my_cref',
             Enum     => { my_enum => [ qw( v1 v2 ), undef ] },
-            Custom   => {                                # Custom profiles
+            Anon   => {                                # Anon profiles
                 my_pos2 =>                               # Positive number
                     And( IsNumber, Matches( qr/^[^-]+$/ ) ),
                 my_nest => IsA( 'Config::Strict' ),      # Nested configuration
@@ -61,10 +61,7 @@ Config::Strict - Add strict name- and type-checking to configuration data
     
 =head1 DESCRIPTION
 
-Config::Strict utilizes L<Declare::Constraints::Simple> to enable strict 
-parameter name- and type-checking on configuration data. Both built-in and 
-custom types can be used to build a validation profile for the entire 
-configuration.
+Config::Strict wraps L<Declare::Constraints::Simple> to enable strict parameter name- and type-checking on configuration data. That is, it will complain anytime an attempt is made to get or set a parameter value with an invalid name or type; or if an attempt is made to unset a required parameter. Both built-in and custom types can be used to build a validation profile for the entire configuration.
 
 A typical workflow might be:
 
@@ -82,13 +79,13 @@ A typical workflow might be:
 
 =back
 
-See L<Declare::Constraints::Simple::Library> for an index to available constraints and the parent documentation for defining your own constraints and scoping.
+See L<Declare::Constraints::Simple::Library> for an index to available constraints.
 
 =head1 CONSTRUCTING A TYPE SYSTEM
 
-Declare the type system during construction:
+Declare the configuration profile during construction:
 
-=head2 Config::Strict->new( \%config_profile )
+=head2 new( \%config_profile )
 
 C<%config_profile> is a multi-level hash with the following top-level keys:
 
@@ -97,65 +94,65 @@ C<%config_profile> is a multi-level hash with the following top-level keys:
 =item B<params> (Required)
 
 Points to the hash of parameter types and names, where the keys are the 
-built-in Config::Strict types (more below). 
+built-in Config::Strict types (more below).
 
 The values are either a single parameter name or an arrayref of parameter names,
-with the exception of the special types C<Enum> and C<Custom> which point to a 
+with the exception of the special types C<Enum> and C<Anon> which point to a 
 uniquely defined hashref.
 
 Any parameter not named here cannot be added later - any attempt to L<access a
 parameter|/"GETTING AND SETTING PARAMETER VALUES"> that is not provided in the 
 constructor will result in an error.
 
-B<Parameter Types And Values:>
+B<Built-In Parameter Types:>
 
 =over 4
 
-=item B<Bool>
+=item B<Bool> => $param | [ $param1, $param2, ... ]
 
 Parameters taking the value 0 or 1.
 
-=item B<Int>
+=item B<Int> => $param | [ $param1, $param2, ... ]
 
 Integer parameters.
 
-=item B<Num>
+=item B<Num> => $param | [ $param1, $param2, ... ]
 
 Generic number parameters.
 
-=item B<Str>
+=item B<Str> => $param | [ $param1, $param2, ... ]
 
 Generic string parameters.
 
-=item B<Enum>
+=item B<Enum> => { $enum1 => [ $val1, $val2, ... ], ... }
 
-Enumerated parameters. The C<Enum> key points to a hashref with
-C<$parameter_name =E<gt> $values> pairs, where C<$values> is an arrayref of 
-valid values for the enum C<$parameter_name>.
+Enumerated parameters. The C<Enum> key points to a hashref with parameter-values pairs, where valid values for the enumerated parameter are provided as an arrayref.
 
-=item B<Regexp>
+It may be cleaner to instead L<register your own named enum|"USER TYPE REGISTRATION"> using C<IsOneOf>. (more below)
+
+This, along with B<Anon>, is the only exception to the normal declaration syntax.
+
+=item B<Regexp> => $param | [ $param1, $param2, ... ]
 
 Compiled regexp parameters (with C<qr//>).
 
-=item B<ArrayRef>
+=item B<ArrayRef> => $param | [ $param1, $param2, ... ]
 
 Generic list parameters.
 
-=item B<HashRef>
+=item B<HashRef> => $param | [ $param1, $param2, ... ]
 
 Generic hash parameters.
 
-=item B<CodeRef>
+=item B<CodeRef> => $param | [ $param1, $param2, ... ]
 
 Generic code parameters.
 
-=item B<Custom>
+=item B<Anon> => { $param1 => $profile1, ... }
 
-Custom validation code. The C<Custom> key points to a hashref with C<$parameter_name =E<gt> $coderef> pairs, where C<$coderef> is a routine that validates a single argument and returns true or false (1 or 0) if the given value is a valid one for that parameter.
+Anonymous profiles. The C<Anon> key points to a hashref with parameter-profile pairs, where profiles are declared via imported L<Declare::Constraints::Simple> functions. These code profiles will in fact return a L<Declare::Constraints::Simple::Result> which evaluate properly in boolean context along with other additional information when used as an object.
 
-As of version 0.03, C<$coderef> must be a L<Declare::Constraints::Simple> "profile." These code profiles will in fact return a L<Declare::Constraints::Simple::Result> which evaluate properly in boolean context and give more information (see their documentation for details).
-
-Future versions may have the option of literal routines (C<sub { my $val = $_[0]; ... }>) which will be wrapped automatically in a profile.
+Note that, unlike registered profiles (below), anonymous code blocks cannot be used.
 
 =back
 
@@ -174,100 +171,129 @@ Those parameters listed in C<required> I<must> be present in this section.
 
 =back
 
+=head2 USER TYPE REGISTRATION
+
+Aside from the default type built-ins (Bool,Int,...) you can register your own named types to streamline construction and add your own validation logic:
+
+=head3 register_types( $name1 => $constraint1, $name2 => $constraint2, ... )
+
+This is a class method.
+
+An example:
+
+	use Date::Calc qw(Decode_Month);	# For 'FirstQuarter'
+	
+	# Register user-defined types...
+	Config::Strict->register_types(
+	    
+	    # Normal profiles:
+	    'Private'        => Matches( qr/^_/ ),
+	    'ArrayOfAllCaps' => IsArrayRef( Matches( qr/^[A-Z]+$/ ) ),
+	    'LessThan8Chars' => HasLength( 1, 8 ),
+	    'Size'           => IsOneOf( qw( small medium large ) ),
+	    
+	    # Custom routines:
+	    'FirstQuarter'   => sub { Decode_Month($_[0]) <= 4 },
+	    
+	    ...
+	);
+	
+	# ...and use them to make a configuration profile:
+	my $config = Config::Strict->new( {
+		params => {
+		    Private        => 'myvar',
+		    ArrayOfAllCaps => 'caps',
+		    LessThan8Chars => [ qw( short1 short2 ) ],
+		    Size           => 'beverage',
+		    FirstQuarter   => 'date_q1',
+		    ...
+		}
+	    }
+	);
+
+The parameters syntax is the same for that of any of the existing built-ins that take either a single name or arrayref of names. More importantly, they can be used in the same way.
+
+Bare code blocks are automatically converted to named L<Declare::Constraints::Simple> profiles so you can easily provide your own validation logic.
+
+Names cannot duplicate an existing registered type name.
+
 =head1 METHODS
 
 =head2 GETTING AND SETTING PARAMETER VALUES
 
 These methods will die with a stack trace if a given parameter doesn't exist in the configuration profile, or if an attempt is made to set a parameter with an invalid value.
 
-=over 4
-
-=item $obj->get_param( $param1, $param2, ... )
+=head3 get_param( $param1, $param2, ... )
 
 Returns the list of values corresponding to each parameter.
 
-=item $obj->set_param( $param1 => $value1, $param2 => $value2, ... )
+=head3 set_param( $param1 => $value1, $param2 => $value2, ... )
 
 Sets each parameter-value configuration pair.
 
-=item $obj->unset_param( $param1, $param2, ... )
+=head3 unset_param( $param1, $param2, ... )
 
 Unsets each parameter; internally deletes the parameter-value pair from the underlying parameter hash.
 
 Required parameters cannot be unset.
 
-=back
-
 =head2 PARAMETER CHECKING
 
 The following methods can be used to check conditions on parameters without killing the program.
 
-=over 4
-
-=item $obj->validate( $param1 => $value1, $param2 => $value2, ... )
+=head3 validate( $param1 => $value1, $param2 => $value2, ... )
 
 Returns true if all parameter-value pairs are valid; false otherwise.
 
-=item $obj->param_exists( $param )
+=head3 param_exists( $param )
 
 Returns true if C<$param> can be get/set; false otherwise.
 
-=item $obj->param_is_set( $param )
+=head3 param_is_set( $param )
 
 Returns true if C<$param> has been set; false otherwise.
 
-=item $obj->param_is_required( $param )
+=head3 param_is_required( $param )
 
 Returns true if C<$param> is a required parameter; false otherwise.
 
-=back
-
 =head2 OTHER METHODS
 
-=over 4
-
-=item $obj->all_params()
+=head3 all_params()
 
 Returns the list of all parameters in the configuration.
 
-=item $obj->all_set_params()
+=head3 all_set_params()
 
 Returns the list of all set parameters in the configuration.
 
-=item $obj->param_hash()
+=head3 param_hash()
 
 Returns a copy of the underlying configuration data as a list of key-value pairs.
 
-=item $obj->param_array()
+=head3 param_array()
 
 Returns a copy of the underlying configuration data as an array of array references.
 
-=item $obj->get_profile( $param )
+=head3 get_profile( $param )
 
-Returns the L<Declare::Constraints::Simple> "profile" used to validate C<$param>; it takes a single argument and returns true if the passed argument would be a valid value for C<$param>. If it's a  profile (true for all cases except custom bare coderefs) it will more specifically return a L<Declare::Constraints::Simple::Result>.
+Returns the L<Declare::Constraints::Simple> profile used to validate C<$param>.
 
-=back
-
-=head1 EXTENDING THE DEFAULT TYPES
+=head1 EXTENDING THE DEFAULT TYPES (OVERVIEW)
 
 There are several ways to make your type system even more strict than the
-provided parameter types:
+built-in parameter types:
 
 =over 4
 
-=item 1. Using the C<Custom> key and combining any number of 
-C<Declare::Constraints::Simple> routines, and/or your own.
+=item 1. Using C<register_types> to register your own class-wide types.
 
-=item 2. Using the C<Custom> key and defining your own validation coderefs. (B<TODO>)
+=item 2. Using the C<Anon> key and combining any number of 
+C<Declare::Constraints::Simple> profiles.
 
 =item 3. Subclassing Config::Strict and overloading any of the C<_get_check>, C<_set_check>, and C<_unset_check> validation methods to add your own general validation semantics. These methods are executed before C<get_param>, C<set_param>, and C<unset_param>, respectively.
 
 =back
-
-B<TODO>:
-    - Document more code examples
-    - Custom type class registration
-    - DCS profile wrapper mechanism
 
 =head1 SEE ALSO
 

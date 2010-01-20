@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 use diagnostics;
-use Test::More tests => 8;
+use Test::More tests => 9;
 
 use Config::Strict;
 
@@ -19,6 +19,12 @@ eval { Config::Strict->new( { params => { Bool => { 'b1' => 'b2' } } } ); };
 like( $@ => qr/Not a valid parameter ref/, _error( $@ ) );
 eval { Config::Strict->new( { params => { Enum => [ 'e' ] } } ); };
 like( $@ => qr/Not a HashRef/, _error( $@ ) );
+
+# Bad required
+eval {
+    Config::Strict->new( { params => { Bool => 'b' }, required => [ 'B' ] } );
+};
+like( $@ => qr/Required parameter 'B'/, _error( $@ ) );
 
 # Missing required params
 eval {
@@ -54,7 +60,7 @@ like( $@ => qr/no value matches/i, _error( $@ ) );
 eval {
     Config::Strict->new( {
             params => {
-                Custom => {
+                Anon => {
                     s => sub { $_[ 0 ] == 1 }
                 },
             }
@@ -62,7 +68,7 @@ eval {
     );
 };
 like(
-    $@ => qr/custom validation must be done with Declare/i,
+    $@ => qr/must be a Declare::/i,
     _error( $@ )
 );
 

@@ -1,5 +1,12 @@
 Revision history for Config-Strict
 
+0.05    01-20-2010
+        - Added user-defined class-registered types (register_types method)
+        - Added UserConstraints.pm utility class for bare code blocks
+        - Now validating required parameter names
+        - Renamed 'Custom' to 'Anon' (parameter key)
+        - Removed all Moose importation from tests
+
 0.04    01-19-2010
         - Removed Moose
 

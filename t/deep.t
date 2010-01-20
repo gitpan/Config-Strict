@@ -24,7 +24,7 @@ my $config = Config::Strict->new( {
             ArrayRef => [ qw( a1 a2 ) ],
             HashRef  => [ qw( h1 h2 ) ],
             Enum     => { 'e' => [ 1, 2, 3 ] },
-            Custom => { 'ch' => OnHashKeys( 'k1' => Matches( qr/foo/ ) ), }
+            Anon => { 'ch' => OnHashKeys( 'k1' => Matches( qr/foo/ ) ), }
         },
         required => [ qw( a1 h1 e ch ) ],
         defaults => \%default

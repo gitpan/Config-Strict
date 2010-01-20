@@ -6,30 +6,90 @@ use Scalar::Util qw(blessed weaken);
 $Data::Dumper::Indent = 0;
 use Carp qw(confess croak);
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 use Declare::Constraints::Simple -All;
+use Config::Strict::UserConstraints;
 
-# TODO: Allow user type registration
 my %type_registry = (
-    Bool => IsOneOf( 0, 1 ),
-    Num  => IsNumber,
-    Int  => IsInt,
-    Str  => HasLength,
-#        Enum     => IsOneOf,   # Points to a hash
+    Bool     => IsOneOf( 0, 1 ),
+    Num      => IsNumber,
+    Int      => IsInt,
+    Str      => HasLength,
     ArrayRef => IsArrayRef,
     HashRef  => IsHashRef,
     CodeRef  => IsCodeRef,
-    Regexp   => IsRegex
+    Regexp   => IsRegex,
+#    Enum     => undef,
+#    Anon => undef,
 );
 
-sub _validate_defaults {
-    my ( $default, $required ) = @_;
-    for ( @$required ) {
-        confess "$_ is a required parameter but isn't in the defaults"
-            unless exists $default->{ $_ };
+sub register_types {
+    # Allow user type registration
+    my $class = shift;
+    croak "No class" unless $class and not ref $class;
+    croak "Invalid name-constraint pairs args (@_)" unless @_ and @_ % 2 == 0;
+    my %nc = @_;
+    while ( my ( $name, $constraint ) = each %nc ) {
+        croak "No name"       unless $name;
+        croak "No constraint" unless $constraint;
+        croak "$name is already a registered type"
+            if exists $type_registry{ $name }
+                or $name eq 'Enum'
+                or $name eq 'Anon';
+#        print "Creating user type $name...\n";
+        if ( _check_is_profile( $constraint ) ) {
+            # Already a profile
+            $type_registry{ $name } = $constraint;
+        }
+        else {
+            # Make a profile from a bare sub
+            my $class = 'Config::Strict::UserConstraints';
+            _make_constraint( $name => $constraint );
+#            print "Declarations: ",Dumper( [ $class->fetch_constraint_declarations ]),"\n";
+            no strict 'refs';
+            my $made = ${ $class . '::CONSTRAINT_GENERATORS' }{ $name };
+            croak "(assert) Generated constraint doesn't return a Result object"
+                unless _check_is_profile( $made );
+            $type_registry{ $name } = $made;
+        }
     }
-}
+} ## end sub register_types
+
+sub _create_profile {
+    my $param = shift;
+
+    # Check parameter hash structure
+    _validate_params( $param );
+
+    my %profile = (
+        # Built-in types
+        (
+            map {
+                my $type = $_;
+                map { $_ => $type_registry{ $type } }
+                    _flatten( $param->{ $_ } )
+                } keys %type_registry
+        ),
+        (
+            map { $_ => IsOneOf( @{ $param->{ Enum }{ $_ } } ) }
+                keys %{ $param->{ Enum } }
+        ),
+        # Anon types
+        (
+            map {
+                my $sub = $param->{ Anon }{ $_ };
+                # TODO: Wrap anon coderfs in a True profile???
+                confess
+"Anon code blocks must be a Declare::Constraints::Simple profile."
+                    . " Use register_types to implement bare coderefs."
+                    unless _check_is_profile( $sub );
+                $_ => $sub
+                } keys %{ $param->{ Anon } }
+        ),
+    );
+    \%profile;
+} ## end sub _create_profile
 
 # Constructor
 sub new {
@@ -57,7 +117,8 @@ sub new {
     @$required = keys %$profile
         if @$required == 1 and $required->[ 0 ] eq '_all';
 
-    # Validate defaults
+    # Validate required and defaults
+    _validate_required( $required, $profile );
     _validate_defaults( $default, $required );
 
     # Construct
@@ -76,7 +137,6 @@ sub get_param {
     my $self = shift;
     $self->_get_check( @_ );
     my $params = $self->{ _params };
-#    print Dumper \@_;
     return (
         wantarray ? ( map { $params->{ $_ } } @_ ) : $params->{ $_[ 0 ] } );
 }
@@ -112,12 +172,7 @@ sub param_hash {
 }
 
 sub param_array {
-    my $self = shift;
-#    my @array;
-#    while ( my ( $p, $v ) = each %{ $self->{ _params } } ) {
-#        push @array, [ $p => $v ];
-#    }
-#    @array;
+    my $self   = shift;
     my $params = $self->{ _params };
     map { [ $_ => $params->{ $_ } ] } keys %$params;
 }
@@ -203,7 +258,7 @@ sub _profile_check {
     }
 }
 
-sub _validate_param_hash {
+sub _validate_params {
     my $param = shift;
     confess "No parameters passed"
         unless defined $param
@@ -218,7 +273,7 @@ sub _validate_param_hash {
             -keys   => HasLength,
             -values => IsArrayRef
         ),
-        Custom => IsHashRef(
+        Anon => IsHashRef(
             -keys   => HasLength,
             -values => IsCodeRef
         ),
@@ -226,6 +281,25 @@ sub _validate_param_hash {
     my $result = $param_profile->( $param );
     confess $result->message unless $result;
     $result;
+}
+
+sub _validate_defaults {
+    my ( $default, $required ) = @_;
+    for ( @$required ) {
+        confess "$_ is a required parameter but isn't in the defaults"
+            unless exists $default->{ $_ };
+    }
+    1;
+}
+
+sub _validate_required {
+    my ( $required, $profile ) = @_;
+    for ( @$required ) {
+        confess
+            "Required parameter '$_' not in the configuration profile"
+            unless exists $profile->{ $_ };
+    }
+    1;
 }
 
 sub _flatten {
@@ -236,45 +310,25 @@ sub _flatten {
     confess "Not a valid parameter ref: " . ref $val;
 }
 
-sub _create_profile {
-    my $param = shift;
-    # Check parameter hash structure
-    _validate_param_hash( $param );
+sub _check_is_profile {
+    my ( $sub ) = @_;
+    confess "Given constraint not a coderef"
+        unless $sub
+            and ref $sub
+            and ref $sub eq 'CODE';
+    my $class = blessed( $sub->( 1 ) );
+#    print $class;
+    return 0
+        unless $class and $class eq "Declare::Constraints::Simple::Result";
+    1;
+}
 
-    my %profile = (
-        # Built-in types
-        (
-            map {
-                my $type = $_;
-                map { $_ => $type_registry{ $type } }
-                    _flatten( $param->{ $_ } )
-                } keys %type_registry
-        ),
-        (
-            map { $_ => IsOneOf( @{ $param->{ Enum }{ $_ } } ) }
-                keys %{ $param->{ Enum } }
-        ),
-
-        # Custom types
-        (
-            map {
-                my $sub = $param->{ Custom }{ $_ };
-                confess "Not a coderef"
-                    unless ref $sub eq 'CODE';
-                # TODO: wrap literal subs into a DCS profile
-                # For now throw an error
-                my $class = blessed( $sub->( 1 ) );
-#                print $class;
-                confess
-"Custom validation must be done with Declare::Constraints::Simple profiles in $VERSION"
-                    unless ( $class
-                    and $class eq 'Declare::Constraints::Simple::Result' );
-                $_ => $sub
-                }
-                keys %{ $param->{ Custom } }
-        ),
-    );
-    \%profile;
-} ## end sub _create_profile
+sub _make_constraint {
+    my ( $name, $sub ) = @_;
+    confess "No name provided" unless $name;
+    confess "Not a coderef"
+        unless $sub and ref $sub eq 'CODE';
+    Config::Strict::UserConstraints->make_constraint( $name => $sub );
+}
 
 1;
