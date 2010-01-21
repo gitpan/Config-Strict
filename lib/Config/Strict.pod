@@ -4,7 +4,7 @@ Config::Strict - Add strict name- and type-checking to configuration data
 
 =head1 VERSION
 
-0.05 (alpha release)
+0.06 (alpha release)
 
 =head1 SYNOPSIS
 

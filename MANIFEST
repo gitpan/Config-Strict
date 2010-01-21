@@ -15,4 +15,5 @@ t/user_types.t
 t/manifest.t
 t/pod-coverage.t
 t/pod.t
+t/version.t
 META.yml                                 Module meta-data (added by MakeMaker)

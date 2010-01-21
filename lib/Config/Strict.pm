@@ -6,7 +6,7 @@ use Scalar::Util qw(blessed weaken);
 $Data::Dumper::Indent = 0;
 use Carp qw(confess croak);
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 use Declare::Constraints::Simple -All;
 use Config::Strict::UserConstraints;

@@ -2,10 +2,6 @@
 
 Config::Strict::UserConstraints - Utility class to register user-defined profiles
 
-=head1 VERSION
-
-0.05 (alpha release)
-
 =head1 DESCRIPTION
 
 This class is used by L<Config::Strict> to register user-defined profiles from bare code blocks and to its type registry.

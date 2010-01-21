@@ -1,16 +1,16 @@
 #!perl
 use strict;
 use warnings;
-use Test::More tests => 4;
-
-use Config::Strict;
-use Declare::Constraints::Simple -All;
+use Test::More;
 
 # Ensure a recent version of Test::Deep
 my $min_tp = 0.089;
 eval "use Test::Deep $min_tp";
-plan skip_all => "Test::Deep $min_tp required for testing deep data accessors"
+plan skip_all => "Test::Deep $min_tp required"
     if $@;
+
+use Config::Strict;
+use Declare::Constraints::Simple -All;
 
 my %default = (
     a1 => [],
@@ -40,3 +40,5 @@ cmp_bag(
     'param_array'
 );
 cmp_bag( [ $config->all_set_params ], [ keys %default ], 'all_set_params' );
+
+done_testing(4);

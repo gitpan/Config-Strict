@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Config-Strict
-version:            0.05
+version:            0.06
 abstract:           Add strict name- and type-checking to configuration data
 author:
     - Blake Willmarth <bwillmarth@gmail.com>
