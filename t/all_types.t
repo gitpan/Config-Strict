@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 use Data::Dumper;
-use Test::More tests => 82;
+use Test::More tests => 100;
 
 use Config::Strict;
 use Declare::Constraints::Simple -All;
@@ -14,8 +14,9 @@ my %default = (
     nvar  => 2.3,
     aref1 => [ 'meh' ],
     href1 => { 'k' => 'v' },
-#    pos1  => 2,
     pos => 3,
+    pos2 => 5,
+    posi => 10,
 );
 my $config = Config::Strict->new( {
         params => {    # Parameter names
@@ -29,8 +30,9 @@ my $config = Config::Strict->new( {
             HashRef  => 'href1',
             CodeRef  => 'cref1',
             Anon   => {                                  # Anon routines
-#                pos1 => sub            { $_[ 0 ] > 0 },        TODO?
                 pos  => And( IsNumber, Matches( qr/^[^-]+$/ ) ),
+                pos2 => sub { $_[0] > 0 },
+                posi => sub { $_[0] > 0 and int($_[0]) == $_[0] },
                 nest => IsA( 'Config::Strict' ),
             }
         },
@@ -41,16 +43,16 @@ my $config = Config::Strict->new( {
 #$Data::Dumper::Indent = 2;
 #print Dumper $config;
 
-# get_param
+# get
 while ( my ( $p, $v ) = each %default ) {
-    my $got = $config->get_param( $p );
+    my $got = $config->get( $p );
     no warnings;
     is( $got, $v, "$p => $v" );
 }
 
 # Bad params
-my_eval_ok( 'get_param', $config, 'blah' );
-my_eval_ok( 'set_param', $config, 'blah' => 0 );
+my_eval_ok( 'get', $config, 'blah' );
+my_eval_ok( 'set', $config, 'blah' => 0 );
 ok( !$config->param_exists( 'blah' ), 'blah' );
 ok( !$config->param_is_set( 'blah' ), 'blah unset' );
 
@@ -62,7 +64,7 @@ for my $p ( $config->all_params ) {
     if ( exists $default{ $p } ) {
         ok( $config->param_is_set( $p ), "$p set" );
         # Validate defaults
-        ok( $config->validate( $p => $config->get_param( $p ) ),
+        ok( $config->validate( $p => $config->get( $p ) ),
             "$p default valid" );
     }
     else {
@@ -72,59 +74,65 @@ for my $p ( $config->all_params ) {
 
 # Unset checks
 ok( $config->param_is_set( 's2' ), 's2 set' );
-$config->unset_param( 's2' );
+$config->unset( 's2' );
 ok( !$config->param_is_set( 's2' ), 's2 unset' );
 ok( $config->param_exists( 's2' ),  's2 exists' );
 # Required parameters
 ok( $config->param_is_required( 'b1' ),  'b1 required' );
 ok( !$config->param_is_required( 'b2' ), 'b2 not required' );
-my_eval_ok( 'unset_param', $config, 'b1' );
+my_eval_ok( 'unset', $config, 'b1' );
 ok( $config->param_is_set( 'b1' ), 'b1 still set' );
 
 # Profile checks
 
 # Int
 ok( $config->validate( 'ivar' => 2 ), 'int validate' );
-ok( $config->set_param( 'ivar' => 2 ), 'int set_param' );
-my_eval_ok( 'set_param', $config, 'ivar' => 1.1 );
-my_eval_ok( 'set_param', $config, 'ivar' => 'meh' );
-is( $config->get_param( 'ivar' ) => 2, 'int get_param' );
+ok( $config->set( 'ivar' => 2 ), 'int set' );
+my_eval_ok( 'set', $config, 'ivar' => 1.1 );
+my_eval_ok( 'set', $config, 'ivar' => 'meh' );
+is( $config->get( 'ivar' ) => 2, 'int get' );
 
 # Enum
-is( $config->get_param( 'enum1' ) => undef, 'enum' );
-$config->set_param( 'enum1' => 'e1' );
-is( $config->get_param( 'enum1' ) => 'e1', 'enum' );
-$config->set_param( 'enum1' => undef );
-is( $config->get_param( 'enum1' ) => undef, 'enum undef' );
-my_eval_ok( 'set_param', $config, 'enum1' => 'blah' );
-my_eval_ok( 'set_param', $config, 'enum1' => 1 );
+is( $config->get( 'enum1' ) => undef, 'enum' );
+$config->set( 'enum1' => 'e1' );
+is( $config->get( 'enum1' ) => 'e1', 'enum' );
+$config->set( 'enum1' => undef );
+is( $config->get( 'enum1' ) => undef, 'enum undef' );
+my_eval_ok( 'set', $config, 'enum1' => 'blah' );
+my_eval_ok( 'set', $config, 'enum1' => 1 );
 
 # Refs
-my_eval_ok( 'set_param', $config, 'aref1' => {} );
-my_eval_ok( 'set_param', $config, 'href1' => [] );
-my_eval_ok( 'set_param', $config, 'cref1' => 'meh' );
-ok( $config->set_param( 'aref1' => [] ), 'aref set' );
-ok( $config->set_param( 'href1' => {} ), 'href set' );
-ok( $config->set_param( 'cref1' => sub { 1 } ), 'cref set' );
+my_eval_ok( 'set', $config, 'aref1' => {} );
+my_eval_ok( 'set', $config, 'href1' => [] );
+my_eval_ok( 'set', $config, 'cref1' => 'meh' );
+ok( $config->set( 'aref1' => [] ), 'aref set' );
+ok( $config->set( 'href1' => {} ), 'href set' );
+ok( $config->set( 'cref1' => sub { 1 } ), 'cref set' );
 
 # Anon
-is( $config->get_param( 'pos' ), 3, 'pos' );
-#my_eval_ok( 'set_param', $config, 'pos1' => -2 );
-my_eval_ok( 'set_param', $config, 'pos' => -2 );
-my_eval_ok( 'set_param', $config, 'ivar' => 5, 'pos' => -5 );
-$config->set_param( pos => 2.22 );
+is( $config->get( 'pos' ), 3, 'pos' );
+is( $config->get( 'pos2' ), 5, 'pos' );
+is( $config->get( 'posi' ), 10, 'pos' );
+my_eval_ok( 'set', $config, 'pos' => -1 );
+my_eval_ok( 'set', $config, 'pos2' => -1 );
+my_eval_ok( 'set', $config, 'posi' => -1 );
+my_eval_ok( 'set', $config, 'posi' => 1.1 );
+my_eval_ok( 'set', $config, 'ivar' => 5, 'pos' => -5 );
+my_eval_ok( 'set', $config, 'ivar' => 5, 'pos2' => -5 );
+$config->set( pos => 2.22 );
+$config->set( pos2 => 3.33 );
 is_deeply(
-    [ $config->get_param( qw( ivar pos ) ) ] => [ 2, 2.22 ],
+    [ $config->get( qw( ivar pos pos2 ) ) ] => [ 2, 2.22, 3.33 ],
     "posints"
 );
-$config->set_param(
+$config->set(
     'nest' => Config::Strict->new( {
             params   => { Bool => [ 'b1' ] },
             defaults => { b1   => 0 }
         }
     )
 );
-is( $config->get_param( 'nest' )->get_param( 'b1' ), 0, 'nested' );
+is( $config->get( 'nest' )->get( 'b1' ), 0, 'nested' );
 
 # Subroutines
 
@@ -136,7 +144,7 @@ sub my_eval_ok {
 #    eval { $sub->( @params ) };
     eval { &{ $subname }( $object, @params ) };
     ok( $@, _error( $@ ) );
-    if ( $subname eq 'Config::Strict::set_param' and @params % 2 == 0 ) {
+    if ( $subname eq 'Config::Strict::set' and @params % 2 == 0 ) {
         ok( !$object->validate( @params ), "setting @params invalid" );
     }
 }

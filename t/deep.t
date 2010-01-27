@@ -32,13 +32,13 @@ my $config = Config::Strict->new( {
 );
 
 # Deep data
-cmp_bag( [ $config->get_param(keys %default) ], [ values %default ], 'get_param' );
+cmp_bag( [ $config->get(keys %default) ], [ values %default ], 'get' );
 cmp_deeply( { $config->param_hash }, \%default, 'param_hash' );
 cmp_bag(
     [ $config->param_array ],
     [ map { [ $_ => $default{ $_ } ] } keys %default ],
     'param_array'
 );
-cmp_bag( [ $config->all_set_params ], [ keys %default ], 'all_set_params' );
+cmp_bag( [ $config->all_set_params ], [ keys %default ], 'all_sets' );
 
 done_testing(4);

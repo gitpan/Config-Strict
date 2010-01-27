@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 use diagnostics;
-use Test::More tests => 9;
+use Test::More tests => 8;
 
 use Config::Strict;
 
@@ -38,7 +38,7 @@ like( $@ => qr/b1 is a required parameter/, _error( $@ ) );
 eval {
     Config::Strict->new( {
             params   => { Bool => [ qw( b1 b2 ) ] },
-            required => [ '_all' ],
+            required => '*',
             defaults => { b1   => 1 },
         }
     );
@@ -56,21 +56,23 @@ eval {
 };
 like( $@ => qr/no value matches/i, _error( $@ ) );
 
-# No literal subs (TODO)
-eval {
-    Config::Strict->new( {
-            params => {
-                Anon => {
-                    s => sub { $_[ 0 ] == 1 }
-                },
-            }
-        }
-    );
-};
-like(
-    $@ => qr/must be a Declare::/i,
-    _error( $@ )
-);
+# Anon subs
+#eval {
+#    Config::Strict->new( {
+#            params => {
+#                Anon => {
+#                    s => sub { $_[ 0 ] == 1 }
+#                },
+#            }
+#        }
+#    )
+#};
+#like(
+#    $@ => qr/must be a Declare::/i,
+#    _error( $@ )
+#);
+
+
 
 sub _error {
     local $_ = shift;

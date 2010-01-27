@@ -4,26 +4,23 @@ Config::Strict - Add strict name- and type-checking to configuration data
 
 =head1 VERSION
 
-0.06 (alpha release)
+0.07 (alpha release)
 
 =head1 SYNOPSIS
 
     use Config::Strict;
     use Declare::Constraints::Simple -All;               # For custom checks
 
-    # A comprehensive example
     my $config = Config::Strict->new( {
         params => {                                      # Parameter types & names
             Bool     => [ qw( my_bool1 my_bool2 ) ],     # Multiple parameters
             Int      => 'my_i',                          # Single parameter
             Num      => 'my_n',
-            Str      => [ qw( my_str1 my_str2 ) ],
-            Regexp   => 'my_re',
-            ArrayRef => 'my_aref',
             HashRef  => 'my_href',
-            CodeRef  => 'my_cref',
-            Enum     => { my_enum => [ qw( v1 v2 ), undef ] },
-            Anon   => {                                # Anon profiles
+            Enum     => { 
+                my_enum => [ qw( v1 v2 ), undef ] 
+            },
+            Anon   => {                                  # anonymous profiles
                 my_pos2 =>                               # Positive number
                     And( IsNumber, Matches( qr/^[^-]+$/ ) ),
                 my_nest => IsA( 'Config::Strict' ),      # Nested configuration
@@ -32,7 +29,6 @@ Config::Strict - Add strict name- and type-checking to configuration data
         required => [ qw( my_bool1 my_n ) ],             # Required parameters
         defaults => {                                    # Default values
             my_bool1    => 1,
-            my_str2     => 'str',
             my_enum     => 'e2',
             my_n        => -1.1,
             my_pos2     => 1_000,
@@ -42,42 +38,29 @@ Config::Strict - Add strict name- and type-checking to configuration data
     # Access and change the data
     
     # Retrieve a single value
-    $config->get_param( 'my_n' );                       # -1.1
+    $got = $config->get( 'my_n' );                # $got = -1.1
     
     # Retrieve a list of values
-    $config->get_param( qw( my_bool1 my_str2 ) );       # ( 1, 'str' )
+    @got = $config->get( qw( my_bool1 my_n ) );   # @got = ( 1, -1.1 )
     
     # Set multiple parameters
-    $config->set_param( my_bool1 => 1, 'my_pos2' => 2 );   
+    $config->set( my_bool1 => 1, 'my_pos2' => 2 );   
     
     # Unset parameters
-    $config->unset_param( 'my_n' );
-    $config->param_is_set( 'my_n' );                    # false
+    $config->unset( 'my_n' );
+    $config->param_is_set( 'my_n' );              # false
     
     # The following will die:
-    $config->get_param( 'bad_name' );           # bad_name doesn't exist in the configuration
-    $config->set_param( 'my_i' => 2.2 );        # my_i must be an integer
-    $config->set_param( 'my_pos2' => -5 );      # my_pos2 must be positive
+    $config->get( 'foo' );                # foo doesn't exist
+    $config->set( 'my_i' => 2.2 );        # my_i must be an integer
+    $config->set( 'my_pos2' => -5 );      # my_pos2 must be positive
+    $config->unset( 'my_n' );             # my_n is required
     
 =head1 DESCRIPTION
 
-Config::Strict wraps L<Declare::Constraints::Simple> to enable strict parameter name- and type-checking on configuration data. That is, it will complain anytime an attempt is made to get or set a parameter value with an invalid name or type; or if an attempt is made to unset a required parameter. Both built-in and custom types can be used to build a validation profile for the entire configuration.
+Config::Strict wraps L<Declare::Constraints::Simple> to enable strict parameter name- and type-checking on configuration data. That is, it will complain anytime an attempt is made to access a parameter with an invalid name or type; or if an attempt is made to unset a required parameter. Both built-in and custom types can be used to build a validation profile for the entire configuration.
 
-A typical workflow might be:
-
-=over 4
-
-=item 1. Use some configuration module to parse a configuration file and load its data.
-
-=item 2. Construct a C<Config::Strict> type system for your configuration data.
-
-=item 3. Load the parsed configuration hash into the Config::Strict object using C<set_param>.
-
-=item 4. Use C<get_param> in your program to access configuration values.
-
-=item 5. Write any changes back to disk using some module.
-
-=back
+This module is meant to be used alongside any configuration parser that hashes configuration data.
 
 See L<Declare::Constraints::Simple::Library> for an index to available constraints.
 
@@ -85,7 +68,9 @@ See L<Declare::Constraints::Simple::Library> for an index to available constrain
 
 Declare the configuration profile during construction:
 
-=head2 new( \%config_profile )
+=head2 new
+
+    $config = Config::Strict->new( \%config_profile );
 
 C<%config_profile> is a multi-level hash with the following top-level keys:
 
@@ -104,7 +89,7 @@ Any parameter not named here cannot be added later - any attempt to L<access a
 parameter|/"GETTING AND SETTING PARAMETER VALUES"> that is not provided in the 
 constructor will result in an error.
 
-B<Built-In Parameter Types:>
+Built-In Parameter Types:
 
 =over 4
 
@@ -161,8 +146,7 @@ Note that, unlike registered profiles (below), anonymous code blocks cannot be u
 Points to a arrayref of parameter names that must have valid values at all times.
 These parameters must also be given a default value.
 
-The special value '_all' in the first location is a shortcut to specify that all 
-parameters are to be required.
+The special value '*' (the literal scalar value; not an arrayref) is a shortcut to specify that all parameters are to be required.
 
 =item B<defaults> (Optional)
 
@@ -175,9 +159,13 @@ Those parameters listed in C<required> I<must> be present in this section.
 
 Aside from the default type built-ins (Bool,Int,...) you can register your own named types to streamline construction and add your own validation logic:
 
-=head3 register_types( $name1 => $constraint1, $name2 => $constraint2, ... )
+=head3 register_types
 
-This is a class method.
+    Config::Strict->register_types( 
+        $name1 => $constraint1, 
+        $name2 => $constraint2, 
+        ... 
+    );
 
 An example:
 
@@ -207,9 +195,9 @@ An example:
 		    Size           => 'beverage',
 		    FirstQuarter   => 'date_q1',
 		    ...
-		}
-	    }
-	);
+		},
+		...
+    } );
 
 The parameters syntax is the same for that of any of the existing built-ins that take either a single name or arrayref of names. More importantly, they can be used in the same way.
 
@@ -223,15 +211,21 @@ Names cannot duplicate an existing registered type name.
 
 These methods will die with a stack trace if a given parameter doesn't exist in the configuration profile, or if an attempt is made to set a parameter with an invalid value.
 
-=head3 get_param( $param1, $param2, ... )
+=head3 get
+
+    @values = $config->get( $param1, $param2, ... );
 
 Returns the list of values corresponding to each parameter.
 
-=head3 set_param( $param1 => $value1, $param2 => $value2, ... )
+=head3 set
+
+    $config->set( $param1 => $value1, $param2 => $value2, ... );
 
 Sets each parameter-value configuration pair.
 
-=head3 unset_param( $param1, $param2, ... )
+=head3 unset
+
+    $config->unset( $param1, $param2, ... );
 
 Unsets each parameter; internally deletes the parameter-value pair from the underlying parameter hash.
 
@@ -241,43 +235,61 @@ Required parameters cannot be unset.
 
 The following methods can be used to check conditions on parameters without killing the program.
 
-=head3 validate( $param1 => $value1, $param2 => $value2, ... )
+=head3 validate
+
+    $ok = $config->validate( $param1 => $value1, $param2 => $value2, ... );
 
 Returns true if all parameter-value pairs are valid; false otherwise.
 
-=head3 param_exists( $param )
+=head3 param_exists
 
-Returns true if C<$param> can be get/set; false otherwise.
+    $ok = $config->param_exists( $param );
 
-=head3 param_is_set( $param )
+Returns true if C<$param> exists in the configuration; false otherwise.
+
+=head3 param_is_set
+
+    $ok = $config->param_is_set( $param );
 
 Returns true if C<$param> has been set; false otherwise.
 
-=head3 param_is_required( $param )
+=head3 param_is_required
+
+    $ok = $config->param_is_required( $param );
 
 Returns true if C<$param> is a required parameter; false otherwise.
 
 =head2 OTHER METHODS
 
-=head3 all_params()
+=head3 all_params
+
+    @params = $config->all_params();
 
 Returns the list of all parameters in the configuration.
 
-=head3 all_set_params()
+=head3 all_set_params
+
+    @params = $config->all_set_params();
 
 Returns the list of all set parameters in the configuration.
 
-=head3 param_hash()
+=head3 param_hash
+
+    %data = $config->param_hash();
 
 Returns a copy of the underlying configuration data as a list of key-value pairs.
 
-=head3 param_array()
+=head3 param_array
+
+    @data = $config->param_array();
 
 Returns a copy of the underlying configuration data as an array of array references.
 
-=head3 get_profile( $param )
+=head3 get_profile
 
-Returns the L<Declare::Constraints::Simple> profile used to validate C<$param>.
+    $profile = $config->get_profile( $param );
+
+Returns the L<Declare::Constraints::Simple> profile used to validate C<$param>, or C<undef> if C<$param> isn't in the profile.
 
 =head1 EXTENDING THE DEFAULT TYPES (OVERVIEW)
 
@@ -286,12 +298,12 @@ built-in parameter types:
 
 =over 4
 
-=item 1. Using C<register_types> to register your own class-wide types.
+=item 1. Using L</register_types> to register your own class-wide types.
 
-=item 2. Using the C<Anon> key and combining any number of 
+=item 2. Using the L<Anon|/new> key and combining any number of 
 C<Declare::Constraints::Simple> profiles.
 
-=item 3. Subclassing Config::Strict and overloading any of the C<_get_check>, C<_set_check>, and C<_unset_check> validation methods to add your own general validation semantics. These methods are executed before C<get_param>, C<set_param>, and C<unset_param>, respectively.
+=item 3. Subclassing Config::Strict and overloading any of the C<_get_check>, C<_set_check>, and C<_unset_check> validation methods to add your own general validation semantics. These methods are executed before L</get>, L</set>, and L</unset>, respectively.
 
 =back
 

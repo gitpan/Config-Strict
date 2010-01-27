@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Config-Strict
-version:            0.06
+version:            0.07
 abstract:           Add strict name- and type-checking to configuration data
 author:
     - Blake Willmarth <bwillmarth@gmail.com>
@@ -13,7 +13,7 @@ build_requires:
 requires:
     Declare::Constraints::Simple:  0.03
     Scalar::Util:         0
-    Test::More:           0
+    Test::More:           0.88
 no_index:
     directory:
         - t

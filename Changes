@@ -1,5 +1,10 @@
 Revision history for Config-Strict
 
+0.07    01-26-2010
+        - Require Test::More 0.88 for done_testing()
+        - Rename get_param/set_param/unset_param to get/set/unset
+        - Add support for anonymous code blocks in Anon
+
 0.06    01-21-2010
         - Fixed deep.t test plan which resulted in failed tests without
           Test::Deep

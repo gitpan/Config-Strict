@@ -38,38 +38,38 @@ for ( qw( myvar caps short1 short2 size posn ) ) {
 }
 
 # PosNum (bare sub)
-eval { $config->set_param( 'posn' => 0 ); };
+eval { $config->set( 'posn' => 0 ); };
 like( $@ => qr/PosNum constraint/, 'PosNum' );
-ok( $config->set_param( 'posn' => 0.1 ), 'PosNum' );
-is( $config->get_param( 'posn' ) => 0.1, 'PosNum' );
+ok( $config->set( 'posn' => 0.1 ), 'PosNum' );
+is( $config->get( 'posn' ) => 0.1, 'PosNum' );
 #print Dumper $config;
 
 # Private
-eval { $config->set_param( 'myvar' => 'bad' ); };
+eval { $config->set( 'myvar' => 'bad' ); };
 like( $@ => qr/regex does not match/i, 'private' );
-ok( $config->set_param( 'myvar' => '_ok' ), 'Private' );
-is( $config->get_param( 'myvar' ) => '_ok', 'Private' );
+ok( $config->set( 'myvar' => '_ok' ), 'Private' );
+is( $config->get( 'myvar' ) => '_ok', 'Private' );
 
 # Caps Array
-eval { $config->set_param( 'caps' => [ 'NOT', 'GOOd' ] ); };
+eval { $config->set( 'caps' => [ 'NOT', 'GOOd' ] ); };
 like( $@ => qr/regex does not match/i, 'caps' );
-ok( $config->set_param( 'caps' => [ 'IZ', 'OK' ] ), 'caps' );
-is_deeply( $config->get_param( 'caps' ) => [ 'IZ', 'OK' ], 'caps' );
+ok( $config->set( 'caps' => [ 'IZ', 'OK' ] ), 'caps' );
+is_deeply( $config->get( 'caps' ) => [ 'IZ', 'OK' ], 'caps' );
 
 # Short values
-eval { $config->set_param( 'short1' => '' ) };
+eval { $config->set( 'short1' => '' ) };
 like( $@ => qr/value too short/i, 'short1' );
-eval { $config->set_param( 'short1' => '123456789' ) };
+eval { $config->set( 'short1' => '123456789' ) };
 like( $@ => qr/value too long/i, 'short1' );
-ok( $config->set_param( 'short1' => '12345678' ), 'short1' );
-ok( $config->set_param( 'short2' => '1' ),        'short2' );
+ok( $config->set( 'short1' => '12345678' ), 'short1' );
+ok( $config->set( 'short2' => '1' ),        'short2' );
 is_deeply(
-    [ $config->get_param( qw( short1 short2 ) ) ] => [ '12345678', '1' ],
+    [ $config->get( qw( short1 short2 ) ) ] => [ '12345678', '1' ],
     'shorts'
 );
 
 # Size
-eval { $config->set_param( 'size' => 'Small' ) };
+eval { $config->set( 'size' => 'Small' ) };
 like( $@ => qr/no value matches/i, 'size' );
-ok( $config->set_param( 'size' => 'small' ), 'size' );
-is( $config->get_param( 'size' ) => 'small', 'size' );
+ok( $config->set( 'size' => 'small' ), 'size' );
+is( $config->get( 'size' ) => 'small', 'size' );

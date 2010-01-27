@@ -6,7 +6,7 @@ use Scalar::Util qw(blessed weaken);
 $Data::Dumper::Indent = 0;
 use Carp qw(confess croak);
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 use Declare::Constraints::Simple -All;
 use Config::Strict::UserConstraints;
@@ -44,17 +44,11 @@ sub register_types {
         }
         else {
             # Make a profile from a bare sub
-            my $class = 'Config::Strict::UserConstraints';
-            _make_constraint( $name => $constraint );
-#            print "Declarations: ",Dumper( [ $class->fetch_constraint_declarations ]),"\n";
-            no strict 'refs';
-            my $made = ${ $class . '::CONSTRAINT_GENERATORS' }{ $name };
-            croak "(assert) Generated constraint doesn't return a Result object"
-                unless _check_is_profile( $made );
+            my $made = _make_constraint( $name => $constraint );
             $type_registry{ $name } = $made;
         }
     }
-} ## end sub register_types
+}
 
 sub _create_profile {
     my $param = shift;
@@ -79,10 +73,10 @@ sub _create_profile {
         (
             map {
                 my $sub = $param->{ Anon }{ $_ };
-                # TODO: Wrap anon coderfs in a True profile???
-                confess
-"Anon code blocks must be a Declare::Constraints::Simple profile."
-                    . " Use register_types to implement bare coderefs."
+                $sub = _make_constraint( undef => $sub )
+#                confess
+#"Anon code blocks must be a Declare::Constraints::Simple profile."
+#                    . " Use register_types to implement bare coderefs."
                     unless _check_is_profile( $sub );
                 $_ => $sub
                 } keys %{ $param->{ Anon } }
@@ -113,9 +107,11 @@ sub new {
     # Create the configuration profile
     my $profile = _create_profile( $param );
 
-    # Set required to all parameters if == [ _all ]
-    @$required = keys %$profile
-        if @$required == 1 and $required->[ 0 ] eq '_all';
+    # Set required to all parameters if *
+    $required = [ keys %$profile ] if $required eq '*';
+    croak "Required parameters not an arrayref" 
+        unless ref $required and ref $required eq 'ARRAY';
+#        @$required == 1 and $required->[ 0 ] eq '_all';
 
     # Validate required and defaults
     _validate_required( $required, $profile );
@@ -129,11 +125,11 @@ sub new {
         },
         $class
     );
-    $self->set_param( %$default );
+    $self->set( %$default );
     $self;
 } ## end sub new
 
-sub get_param {
+sub get {
     my $self = shift;
     $self->_get_check( @_ );
     my $params = $self->{ _params };
@@ -141,7 +137,7 @@ sub get_param {
         wantarray ? ( map { $params->{ $_ } } @_ ) : $params->{ $_[ 0 ] } );
 }
 
-sub set_param {
+sub set {
     my $self = shift;
     $self->_set_check( @_ );
     my %pv = @_;
@@ -151,7 +147,7 @@ sub set_param {
     1;
 }
 
-sub unset_param {
+sub unset {
     my $self = shift;
     $self->_unset_check( @_ );
     delete $self->{ _params }{ $_ } for @_;
@@ -295,8 +291,7 @@ sub _validate_defaults {
 sub _validate_required {
     my ( $required, $profile ) = @_;
     for ( @$required ) {
-        confess
-            "Required parameter '$_' not in the configuration profile"
+        confess "Required parameter '$_' not in the configuration profile"
             unless exists $profile->{ $_ };
     }
     1;
@@ -323,12 +318,31 @@ sub _check_is_profile {
     1;
 }
 
-sub _make_constraint {
-    my ( $name, $sub ) = @_;
-    confess "No name provided" unless $name;
-    confess "Not a coderef"
-        unless $sub and ref $sub eq 'CODE';
-    Config::Strict::UserConstraints->make_constraint( $name => $sub );
+{
+    my $anon_count = 0;
+
+    sub _make_constraint {
+        my ( $name, $sub ) = @_;
+#    confess "No name provided" unless $name;
+        unless ( defined $name ) {
+            # Anonymous constraint
+            $name = sprintf( "__ANON%d__", $anon_count++ );
+        }
+        confess "Not a coderef"
+            unless $sub and ref $sub eq 'CODE';
+        # Make the constraint
+        Config::Strict::UserConstraints->make_constraint( $name => $sub );
+        # Return the new constraint
+        my $class = 'Config::Strict::UserConstraints';
+#        print "Declarations: ",Dumper( [ $class->fetch_constraint_declarations ]),"\n";
+        no strict 'refs';
+        my $made = ${ $class . '::CONSTRAINT_GENERATORS' }{ $name };
+        use strict 'refs';
+        # Sanity check
+        croak "(assert) Generated constraint doesn't return a Result object"
+            unless _check_is_profile( $made );
+        return $made;
+    }
 }
 
 1;

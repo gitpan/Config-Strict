@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Test::More tests => 4;
+use Test::More tests => 6;
 
 use Config::Strict;
 
@@ -42,3 +42,25 @@ ok(
     'some required'
   );
   
+ok(
+    Config::Strict->new({
+params   => { Bool => 'b', Int => 'i', Num => 'n' },
+            required => '*',
+            defaults => { b => 0, 'i' => 10, 'n' => 2.2 }
+        }
+    ),
+    'all required'
+  );
+  
+ok(
+    Config::Strict->new( {
+            params => {
+                Anon => {
+                    s => sub { $_[ 0 ] == 1 }
+                },
+            }
+        }
+    ),
+    'anon subs'
+);
+
